@@ -2,17 +2,16 @@ name: Deploy Flutter Web to GitHub Pages
 
 on:
   push:
-    branches: [ main ]  # 你的預設分支
+    branches: [ main ]   # 你的預設分支
 
 permissions:
-  contents: write       # 讓 GITHUB_TOKEN 可 push
-  pages: write          # （有些情境需要）
-  id-token: write       # （新版 Pages 需要 OIDC 時）
+  contents: write       # 允許 GITHUB_TOKEN push
+  pages: write
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,7 +25,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Flutter Web
-        # 將 repo 名稱換成你的；若是 username.github.io 則改成 "/"
+        # 你的 repo 是 bacamp，所以 base-href 一定要是下面這個
         run: flutter build web --release --base-href "/bacamp/"
 
       - name: Deploy to GitHub Pages
@@ -34,6 +33,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: build/web
-          # 若你想指定分支/自訂 CNAME，可加：
-          # publish_branch: gh-pages
-          # cname: your.domain.com
+          publish_branch: gh-pages
