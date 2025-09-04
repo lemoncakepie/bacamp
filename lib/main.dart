@@ -123,6 +123,9 @@ class _PlanetPageState extends State<PlanetPage> {
   // 公告
   String tickerSentence = '';
 
+  // 星圖：目前篩選的星系（null = 全部）
+  int? _galaxyFilter;
+
   // 資產頁登入的星系
   String? currentTeam;
 
@@ -317,7 +320,7 @@ class _PlanetPageState extends State<PlanetPage> {
   Future<void> fetchProduction() async {
     try {
       final list = await _fetchCsvByCandidates(PRODUCTION_SHEETS);
-    final h = list.first;
+      final h = list.first;
       final r = list.skip(1).toList();
       pIdxOwner = _findIndexLike(h, ['星系','team','小隊','小隊編號','隊伍']);
       setState(() {
@@ -489,51 +492,106 @@ class _PlanetPageState extends State<PlanetPage> {
       return Center(child: Text(error!, style: const TextStyle(color: Colors.red)));
     }
 
-    return LayoutBuilder(
-      builder: (context, c) {
-        final width = c.maxWidth;
-        final cross = (width ~/ 92).clamp(3, 20);
+    // 篩選按鈕列（可橫向捲動）
+    final filters = <int?>[null, 1, 2, 3, 4, 5, 6, 7]; // null = 全部
+    final filterLabels = <int?, String>{
+      null: '全部', 1: '第1星系', 2: '第2星系', 3: '第3星系', 4: '第4星系',
+      5: '第5星系', 6: '第6星系', 7: '第7星系',
+    };
 
-        // 為了大小依價值而變化
-        double minV = double.infinity, maxV = -double.infinity;
-        final items = planets;
-        for (final p in items) {
-          if (p.value != null) {
-            minV = math.min(minV, p.value!);
-            maxV = math.max(maxV, p.value!);
-          }
-        }
-        if (minV == double.infinity) { minV = 0; maxV = 0; }
+    // 依篩選過濾星球
+    final all = planets;
+    final items = (_galaxyFilter == null)
+        ? all
+        : all.where((p) => _ownerAsInt(p.owner) == _galaxyFilter).toList();
 
-        return GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: cross,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1,
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 44,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: filters.map((f) {
+                final selected = _galaxyFilter == f;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(filterLabels[f]!, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _galaxyFilter = f),
+                    selectedColor: Theme.of(context).colorScheme.primaryContainer,
+                    showCheckmark: false,
+                  ),
+                );
+              }).toList(),
+            ),
           ),
-          itemCount: items.length,
-          itemBuilder: (context, i) {
-            final p = items[i];
-            final color = _colorForGalaxy(p.owner);
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final width = c.maxWidth;
+              final cross = (width ~/ 92).clamp(3, 20);
 
-            double size = 48;
-            if (p.value != null && maxV > minV) {
-              final t = ((p.value! - minV) / (maxV - minV)).clamp(0, 1);
-              size = 40 + t * 28; // 40~68
-            }
+              // 為了大小依價值而變化
+              double minV = double.infinity, maxV = -double.infinity;
+              for (final p in items) {
+                if (p.value != null) {
+                  minV = math.min(minV, p.value!);
+                  maxV = math.max(maxV, p.value!);
+                }
+              }
+              if (minV == double.infinity) { minV = 0; maxV = 0; }
 
-            return PlanetDot(
-              planet: p,
-              color: color,
-              diameter: size,
-              onTap: () => _showPlanetSheet(context, p, color),
-            );
-          },
-        );
-      },
+              return GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cross,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1,
+                ),
+                itemCount: items.length,
+                itemBuilder: (context, i) {
+                  final p = items[i];
+                  final color = _colorForGalaxy(p.owner);
+
+                  double size = 48;
+                  if (p.value != null && maxV > minV) {
+                    final t = ((p.value! - minV) / (maxV - minV)).clamp(0, 1);
+                    size = 40 + t * 28; // 40~68
+                  }
+
+                  return PlanetDot(
+                    planet: p,
+                    color: color,
+                    diameter: size,
+                    onTap: () => _showPlanetSheet(context, p, color),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
+  }
+
+  // 將 owner 文字轉成星系數字（1~7），失敗回 null
+  int? _ownerAsInt(String owner) {
+    var s = owner.trim();
+    s = s.replaceAll(RegExp(r'\s+'), '');
+    s = s.replaceAll('星系', '');
+    s = s.replaceAll(RegExp(r'^第'), '');
+    s = s.replaceAll(RegExp(r'\.0+$'), '');
+    final n = int.tryParse(s);
+    if (n == null) return null;
+    if (n < 1 || n > 7) return null;
+    return n;
   }
 
   // 點擊星球顯示資訊
@@ -755,15 +813,24 @@ class _PlanetPageState extends State<PlanetPage> {
                 childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 children: () {
                   final map = _productionForTeam(team);
-                  if (map == null || map.isEmpty) {
+                  if (map == null) {
                     return const [Padding(padding: EdgeInsets.only(bottom: 12), child: Text('無生產資料'))];
                   }
+                  // 固定五個產品橫向：金錢、糧食、武器、科技點、教育值
+                  const keys = ['金錢', '糧食', '武器', '科技點', '教育值'];
+                  final cells = keys.map((k) => map[k]?.trim().isNotEmpty == true ? map[k]! : '-').toList();
+
                   return [
-                    Wrap(
-                      spacing: 12, runSpacing: 12,
-                      children: map.entries.map((e) => _InfoCard(title: e.key, value: e.value)).toList(),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columns: keys.map((k) => DataColumn(label: Text(k))).toList(),
+                        rows: [
+                          DataRow(cells: cells.map((v) => DataCell(Text(v))).toList()),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                   ];
                 }(),
               ),
@@ -1079,8 +1146,8 @@ class _PlanetPageState extends State<PlanetPage> {
 }
 
 // ===== 小型 UI 元件 =====
-// 統一卡片縮放：縮小 10%
-const double cardWidthFactor = 0.9;
+// 統一卡片縮放：寬度再縮小 20%
+const double cardWidthFactor = 0.8;
 const double cardHeightFactor = 0.9;
 
 class _StatCard extends StatelessWidget {
@@ -1215,8 +1282,8 @@ class _InfoCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.value,
-    this.width = 180 * cardWidthFactor,   // 縮小 10%
-    this.height = 88 * cardHeightFactor,  // 縮小 10%
+    this.width = 180 * cardWidthFactor,   // 只縮寬 20%
+    this.height = 88 * cardHeightFactor,
   });
 
   @override
