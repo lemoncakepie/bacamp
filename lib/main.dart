@@ -13,22 +13,28 @@ const SHEET_ID = '1zLEO75SNjkLQO4LwA4xZoiy3yIHe_l2Msms-jWKr-74';
 
 // 可按需要把新的分頁名加到各清單最前面
 const PLANETS_SHEETS = ['星球價值'];
-const TICKER_SHEETS = ['戰爭與併購紀錄'];
-const ASSETS_SHEETS = ['各小保存資產'];
+const TICKER_SHEETS  = ['戰爭與併購紀錄'];
+const ASSETS_SHEETS  = ['各小保存資產'];
 const PRODUCTION_SHEETS = ['每回合生產結果'];
-const ORDERS_SHEETS = ['星球訂購紀錄'];
+const ORDERS_SHEETS  = ['星球訂購紀錄'];
+
+// 新增：各紀錄分頁
+const TECH_DEPLOY_SHEETS   = ['科技點部署紀錄'];
+const WEAPON_DEPLOY_SHEETS = ['武器值部署紀錄'];
+const MISSION_LOG_SHEETS   = ['任務紀錄'];
+const CASINO_LOG_SHEETS    = ['賭場紀錄'];
 
 // 生產表找不到「下回合/Next」欄時，退而使用 I 欄(含)之後
 const int PRODUCTION_FALLBACK_FROM_COL = 8; // A=0, ..., I=8
 
-// ===== 星系密碼（寫死） =====
+// ===== 星系密碼（依指示互換 1↔2、3↔4、5↔6；原始只有 1~7） =====
 const Map<String, String> TEAM_PASSWORDS = {
-  '3840985028501834': '1',
-  '9228832979541839': '2',
-  '3927183277455893': '3',
-  '7492283017398639': '4',
-  '2968395073010185': '5',
-  '5758297310578390': '6',
+  '3840985028501834': '2',
+  '9228832979541839': '1',
+  '3927183277455893': '4',
+  '7492283017398639': '3',
+  '2968395073010185': '6',
+  '5758297310578390': '5',
   '6293068245932710': '7',
 };
 
@@ -136,6 +142,28 @@ class _PlanetPageState extends State<PlanetPage> {
   Map<String, String> planetProduction = {};
   String? ordersError;
 
+  // 科技/武器/任務/賭場 紀錄
+  List<String> techHeaders = [];
+  List<List<String>> techRows = [];
+  String? techError;
+
+  List<String> weaponHeaders = [];
+  List<List<String>> weaponRows = [];
+  String? weaponError;
+
+  List<String> missionHeaders = [];
+  List<List<String>> missionRows = [];
+  String? missionError;
+
+  List<String> casinoHeaders = [];
+  List<List<String>> casinoRows = [];
+  String? casinoError;
+
+  // 戰爭與併購紀錄（用於兩個抽屜）
+  List<String> warHeaders = [];
+  List<List<String>> warRows = [];
+  String? warError;
+
   Timer? autoTimer;
 
   @override
@@ -158,6 +186,11 @@ class _PlanetPageState extends State<PlanetPage> {
       fetchAssets(),
       fetchProduction(),
       fetchOrders(),
+      fetchTechDeploy(),
+      fetchWeaponDeploy(),
+      fetchMissionLogs(),
+      fetchCasinoLogs(),
+      fetchWarLogs(),
     ]);
   }
 
@@ -197,7 +230,6 @@ class _PlanetPageState extends State<PlanetPage> {
       final idxPlanet    = _findIndexLike(h, ['星球編號','planet','planet id']);
       final idxResult    = _findIndexLike(h, ['結果','outcome','result','勝負','結論']);
 
-      // 從最後一列往上找到第一筆完整事件
       List<String>? last;
       bool meaningful(List<String> r) {
         final hasType = (idxType != null && idxType! < r.length && r[idxType!].trim().isNotEmpty) || _guessTypeFromRow(r) != null;
@@ -261,7 +293,7 @@ class _PlanetPageState extends State<PlanetPage> {
       final h = list.first;
       final r = list.skip(1).toList();
 
-      aIdxOwner   = _findIndexLike(h, ['星系','team','小隊']);
+      aIdxOwner   = _findIndexLike(h, ['星系','team','小隊','小隊編號','隊伍']);
       aIdxMoney   = _findIndexLike(h, ['金錢','money','資金','現金','金幣','gold']);
       aIdxFood    = _findIndexLike(h, ['糧食','food']);
       aIdxWeapons = _findIndexLike(h, ['武器','weapons','arms']);
@@ -285,9 +317,9 @@ class _PlanetPageState extends State<PlanetPage> {
   Future<void> fetchProduction() async {
     try {
       final list = await _fetchCsvByCandidates(PRODUCTION_SHEETS);
-      final h = list.first;
+    final h = list.first;
       final r = list.skip(1).toList();
-      pIdxOwner = _findIndexLike(h, ['星系','team','小隊']);
+      pIdxOwner = _findIndexLike(h, ['星系','team','小隊','小隊編號','隊伍']);
       setState(() {
         prodHeaders = h;
         prodRows    = r;
@@ -330,6 +362,72 @@ class _PlanetPageState extends State<PlanetPage> {
         planetProduction = {};
         ordersError = '讀取星球訂購紀錄失敗：$e';
       });
+    }
+  }
+
+  // ====== 新增：各紀錄表 ======
+  Future<void> fetchTechDeploy() async {
+    try {
+      final list = await _fetchCsvByCandidates(TECH_DEPLOY_SHEETS);
+      setState(() {
+        techHeaders = list.first;
+        techRows    = list.skip(1).toList();
+        techError   = null;
+      });
+    } catch (e) {
+      setState(() { techHeaders = []; techRows = []; techError = '讀取科技點部署紀錄失敗：$e'; });
+    }
+  }
+
+  Future<void> fetchWeaponDeploy() async {
+    try {
+      final list = await _fetchCsvByCandidates(WEAPON_DEPLOY_SHEETS);
+      setState(() {
+        weaponHeaders = list.first;
+        weaponRows    = list.skip(1).toList();
+        weaponError   = null;
+      });
+    } catch (e) {
+      setState(() { weaponHeaders = []; weaponRows = []; weaponError = '讀取武器值部署紀錄失敗：$e'; });
+    }
+  }
+
+  Future<void> fetchMissionLogs() async {
+    try {
+      final list = await _fetchCsvByCandidates(MISSION_LOG_SHEETS);
+      setState(() {
+        missionHeaders = list.first;
+        missionRows    = list.skip(1).toList();
+        missionError   = null;
+      });
+    } catch (e) {
+      setState(() { missionHeaders = []; missionRows = []; missionError = '讀取任務紀錄失敗：$e'; });
+    }
+  }
+
+  Future<void> fetchCasinoLogs() async {
+    try {
+      final list = await _fetchCsvByCandidates(CASINO_LOG_SHEETS);
+      setState(() {
+        casinoHeaders = list.first;
+        casinoRows    = list.skip(1).toList();
+        casinoError   = null;
+      });
+    } catch (e) {
+      setState(() { casinoHeaders = []; casinoRows = []; casinoError = '讀取賭場紀錄失敗：$e'; });
+    }
+  }
+
+  Future<void> fetchWarLogs() async {
+    try {
+      final list = await _fetchCsvByCandidates(TICKER_SHEETS);
+      setState(() {
+        warHeaders = list.first;
+        warRows    = list.skip(1).toList();
+        warError   = null;
+      });
+    } catch (e) {
+      setState(() { warHeaders = []; warRows = []; warError = '讀取戰爭與併購紀錄失敗：$e'; });
     }
   }
 
@@ -512,16 +610,15 @@ class _PlanetPageState extends State<PlanetPage> {
                 ],
               ),
               const SizedBox(height: 12),
+              // 刪掉「星球編號」與「星球價值」卡片
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  _InfoCard(title: '星球編號', value: p.id),
                   _InfoCard(title: '生產物資', value: produceText),
-                  _InfoCard(title: '星球價值', value: p.value == null ? '-' : _pretty(p.value!)),
                   _InfoCard(title: '所屬星系', value: team.isEmpty ? '-' : team),
                   _InfoCard(title: '星系星球數', value: teamCount.toString()),
-                  _InfoCard(title: '星系名次（按星球數）', value: teamRank == 0 ? '-' : '#$teamRank'),
+                  _InfoCard(title: '星系名次', value: teamRank == 0 ? '-' : '#$teamRank'),
                 ],
               ),
               const SizedBox(height: 8),
@@ -595,6 +692,29 @@ class _PlanetPageState extends State<PlanetPage> {
 
     final color = _colorForGalaxy(team);
 
+    // 各表只顯示「當前登入星系」，且移除小隊欄位
+    final filteredTech    = _filterRowsByTeam(techHeaders,    techRows,    team);
+    final filteredWeapon  = _filterRowsByTeam(weaponHeaders,  weaponRows,  team);
+    final filteredMission = _filterRowsByTeam(missionHeaders, missionRows, team);
+    final filteredCasino  = _filterRowsByTeam(casinoHeaders,  casinoRows,  team);
+
+    // 戰爭與併購：主動（發起方==team）、被動（原主/守方==team）
+    final warIdxInitiator = _teamLikeIndex(warHeaders, initiatorLike: true);
+    final warIdxTarget    = _teamLikeIndex(warHeaders, initiatorLike: false);
+    final warInitiated = (warIdxInitiator == null) ? <List<String>>[] :
+      warRows.where((r) => warIdxInitiator < r.length && _sameTeam(r[warIdxInitiator], team)).toList();
+    final warTargeted = (warIdxTarget == null) ? <List<String>>[] :
+      warRows.where((r) => warIdxTarget < r.length && _sameTeam(r[warIdxTarget], team)).toList();
+
+    // 要移除的「小隊欄位」索引（表格內若存在）
+    final removeTeamColsFromTech    = _collectTeamColumns(techHeaders);
+    final removeTeamColsFromWeapon  = _collectTeamColumns(weaponHeaders);
+    final removeTeamColsFromMission = _collectTeamColumns(missionHeaders);
+    final removeTeamColsFromCasino  = _collectTeamColumns(casinoHeaders);
+
+    // 戰爭表：同時把發起/原主這些欄位也移除（避免重複露出小隊編號）
+    final removeColsFromWar = _collectTeamColumns(warHeaders);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -623,38 +743,101 @@ class _PlanetPageState extends State<PlanetPage> {
             ],
           ),
           const SizedBox(height: 16),
-          // 下回合生產（卡片）
+
           if (prodError != null) Text(prodError!, style: const TextStyle(color: Colors.red)),
           if (prodHeaders.isNotEmpty)
             Material(
               elevation: 1,
               borderRadius: BorderRadius.circular(12),
               child: ExpansionTile(
-                initiallyExpanded: true,
-                title: const Text('下回合生產'),
+                initiallyExpanded: false,
+                title: const Text('本階段生產'),
                 childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 children: () {
                   final map = _productionForTeam(team);
                   if (map == null || map.isEmpty) {
-                    return const [
-                      Padding(
-                        padding: EdgeInsets.only(bottom: 12),
-                        child: Text('找不到下回合生產資料'),
-                      )
-                    ];
+                    return const [Padding(padding: EdgeInsets.only(bottom: 12), child: Text('無生產資料'))];
                   }
                   return [
                     Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: map.entries.map((e) {
-                        return _InfoCard(title: e.key, value: e.value);
-                      }).toList(),
+                      spacing: 12, runSpacing: 12,
+                      children: map.entries.map((e) => _InfoCard(title: e.key, value: e.value)).toList(),
                     ),
                     const SizedBox(height: 12),
                   ];
                 }(),
               ),
+            ),
+
+          const SizedBox(height: 16),
+
+          // 科技點部署紀錄
+          if (techError != null) Text(techError!, style: const TextStyle(color: Colors.red)),
+          if (techHeaders.isNotEmpty)
+            _buildLogPanel(
+              title: '科技點部署紀錄',
+              headers: techHeaders,
+              rows: filteredTech,
+              removeColIdxs: removeTeamColsFromTech,
+            ),
+
+          const SizedBox(height: 16),
+
+          // 武器值部署紀錄
+          if (weaponError != null) Text(weaponError!, style: const TextStyle(color: Colors.red)),
+          if (weaponHeaders.isNotEmpty)
+            _buildLogPanel(
+              title: '武器值部署紀錄',
+              headers: weaponHeaders,
+              rows: filteredWeapon,
+              removeColIdxs: removeTeamColsFromWeapon,
+            ),
+
+          const SizedBox(height: 16),
+
+          // 任務紀錄
+          if (missionError != null) Text(missionError!, style: const TextStyle(color: Colors.red)),
+          if (missionHeaders.isNotEmpty)
+            _buildLogPanel(
+              title: '任務紀錄',
+              headers: missionHeaders,
+              rows: filteredMission,
+              removeColIdxs: removeTeamColsFromMission,
+            ),
+
+          const SizedBox(height: 16),
+
+          // 賭場紀錄
+          if (casinoError != null) Text(casinoError!, style: const TextStyle(color: Colors.red)),
+          if (casinoHeaders.isNotEmpty)
+            _buildLogPanel(
+              title: '賭場紀錄',
+              headers: casinoHeaders,
+              rows: filteredCasino,
+              removeColIdxs: removeTeamColsFromCasino,
+            ),
+
+          const SizedBox(height: 16),
+
+          // 戰爭與併購紀錄（主動）
+          if (warError != null) Text(warError!, style: const TextStyle(color: Colors.red)),
+          if (warHeaders.isNotEmpty)
+            _buildLogPanel(
+              title: '戰爭與併購紀錄（主動）',
+              headers: warHeaders,
+              rows: warInitiated,
+              removeColIdxs: removeColsFromWar,
+            ),
+
+          const SizedBox(height: 16),
+
+          // 被戰爭與併購紀錄（被動）
+          if (warHeaders.isNotEmpty)
+            _buildLogPanel(
+              title: '被戰爭與併購紀錄（被動）',
+              headers: warHeaders,
+              rows: warTargeted,
+              removeColIdxs: removeColsFromWar,
             ),
         ],
       ),
@@ -685,7 +868,7 @@ class _PlanetPageState extends State<PlanetPage> {
     if (assetRows.isEmpty || aIdxOwner == null) return null;
     List<String>? row;
     for (final r in assetRows) {
-      if (aIdxOwner! < r.length && r[aIdxOwner!].trim() == team) { row = r; break; }
+      if (aIdxOwner! < r.length && _sameTeam(r[aIdxOwner!], team)) { row = r; break; }
     }
     if (row == null) return null;
 
@@ -706,13 +889,13 @@ class _PlanetPageState extends State<PlanetPage> {
     );
   }
 
-  /// 取得某星系的「下回合生產」欄位（key=顯示名, value=數值）
+  /// 取得某星系的「下回合/本階段生產」欄位（key=顯示名, value=數值）
   Map<String, String>? _productionForTeam(String team) {
     if (prodRows.isEmpty || pIdxOwner == null) return null;
 
     List<String>? row;
     for (final r in prodRows) {
-      if (pIdxOwner! < r.length && r[pIdxOwner!].trim() == team) { row = r; break; }
+      if (pIdxOwner! < r.length && _sameTeam(r[pIdxOwner!], team)) { row = r; break; }
     }
     if (row == null) return null;
 
@@ -745,7 +928,6 @@ class _PlanetPageState extends State<PlanetPage> {
 
       all[_beautifyProdTitle(key)] = val;
     }
-
     return all.isEmpty ? null : all;
   }
 
@@ -759,6 +941,94 @@ class _PlanetPageState extends State<PlanetPage> {
     if (k.contains('教育數目')) return '教育值';
     if (k == '糧食' || k == '金錢' || k == '武器' || k == '科技點' || k == '教育值') return k;
     return k;
+  }
+
+  // ======= 篩選與欄位移除工具 =======
+
+  // 找出小隊欄位的 index（科技/武器/任務/賭場用）
+  int? _teamColumnIndex(List<String> headers) {
+    return _findIndexLike(headers, ['星系','team','小隊','小隊編號','隊伍','隊伍編號']);
+  }
+
+  // 找出戰爭表的「發起」或「原主」欄 index
+  int? _teamLikeIndex(List<String> headers, {required bool initiatorLike}) {
+    return initiatorLike
+      ? _findIndexLike(headers, ['發起','攻方','initiator','發起星系','攻擊方'])
+      : _findIndexLike(headers, ['原主','守方','target','原主星系','防守方']);
+  }
+
+  // 規格化 team 值（把「第」「星系」與小數 .0 去掉）
+  String _normTeamText(String v) {
+    var s = v.trim();
+    if (s.isEmpty) return '';
+    s = s.replaceAll(RegExp(r'\s+'), '');
+    s = s.replaceAll('星系', '');
+    s = s.replaceAll(RegExp(r'^第'), '');
+    s = s.replaceAll(RegExp(r'\.0+$'), '');
+    return s;
+  }
+
+  bool _sameTeam(String cell, String team) => _normTeamText(cell) == _normTeamText(team);
+
+  // 只保留當前登入星系的列
+  List<List<String>> _filterRowsByTeam(List<String> headers, List<List<String>> rows, String team) {
+    if (headers.isEmpty || rows.isEmpty) return const [];
+    final idx = _teamColumnIndex(headers);
+    if (idx == null) return const [];
+    return rows.where((r) => idx < r.length && _sameTeam(r[idx], team)).toList();
+  }
+
+  // 收集要移除的「小隊欄位」index（包含一般 Team 欄與戰爭表的發起/原主欄）
+  Set<int> _collectTeamColumns(List<String> headers) {
+    final set = <int>{};
+    final a = _teamColumnIndex(headers);
+    if (a != null) set.add(a);
+    final b = _teamLikeIndex(headers, initiatorLike: true);
+    if (b != null) set.add(b);
+    final c = _teamLikeIndex(headers, initiatorLike: false);
+    if (c != null) set.add(c);
+    return set;
+  }
+
+  // 生成紀錄抽屜（DataTable），並移除指定欄位
+  Widget _buildLogPanel({
+    required String title,
+    required List<String> headers,
+    required List<List<String>> rows,
+    Set<int> removeColIdxs = const {},
+  }) {
+    // 建立保留欄位索引清單（從 0..n-1 移除 removeColIdxs）
+    final keptIdxs = <int>[];
+    for (int i = 0; i < headers.length; i++) {
+      if (!removeColIdxs.contains(i)) keptIdxs.add(i);
+    }
+
+    return Material(
+      elevation: 1,
+      borderRadius: BorderRadius.circular(12),
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        title: Text(title),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        children: [
+          if (rows.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text('目前沒有資料'),
+            )
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: keptIdxs.map((i) => DataColumn(label: Text(headers[i]))).toList(),
+                rows: rows.map((r) => DataRow(
+                  cells: keptIdxs.map((i) => DataCell(Text(i < r.length ? r[i] : ''))).toList(),
+                )).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   // ===== 小工具 =====
@@ -809,6 +1079,10 @@ class _PlanetPageState extends State<PlanetPage> {
 }
 
 // ===== 小型 UI 元件 =====
+// 統一卡片縮放：縮小 10%
+const double cardWidthFactor = 0.9;
+const double cardHeightFactor = 0.9;
+
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
@@ -817,8 +1091,8 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: SizedBox(
-        width: 180,
-        height: 88,
+        width: 180 * cardWidthFactor,
+        height: 88 * cardHeightFactor,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -941,8 +1215,8 @@ class _InfoCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.value,
-    this.width = 180,
-    this.height = 88,
+    this.width = 180 * cardWidthFactor,   // 縮小 10%
+    this.height = 88 * cardHeightFactor,  // 縮小 10%
   });
 
   @override
